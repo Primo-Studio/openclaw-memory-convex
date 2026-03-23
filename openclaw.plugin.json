@@ -1,0 +1,118 @@
+{
+  "id": "memory-convex",
+  "uiHints": {
+    "convexUrl": {
+      "label": "Convex Deployment URL",
+      "placeholder": "https://your-deployment.convex.cloud",
+      "help": "Your Convex deployment URL (the one from npx convex dev)"
+    },
+    "autoRecall": {
+      "label": "Auto-Recall",
+      "help": "Automatically search and inject relevant memories before each agent response"
+    },
+    "autoCapture": {
+      "label": "Auto-Capture",
+      "help": "Automatically extract and store important facts after each agent turn"
+    },
+    "recallLimit": {
+      "label": "Recall Limit",
+      "help": "Maximum number of memory facts to inject (default: 5)",
+      "advanced": true
+    },
+    "captureMaxChars": {
+      "label": "Capture Max Chars",
+      "help": "Maximum user message length eligible for auto-capture (default: 500)",
+      "advanced": true
+    },
+    "defaultAgent": {
+      "label": "Default Agent Name",
+      "help": "Agent name for memory storage (default: 'koda')",
+      "advanced": true
+    },
+    "captureMode": {
+      "label": "Capture Mode",
+      "help": "Fact extraction method: 'regex' (free, basic), 'llm' (Ollama local, smarter), 'both' (regex + LLM). Default: 'regex'",
+      "advanced": true
+    },
+    "llmUrl": {
+      "label": "LLM URL (Ollama)",
+      "help": "Ollama API URL for LLM-based capture (default: http://localhost:11434)",
+      "advanced": true
+    },
+    "llmModel": {
+      "label": "LLM Model",
+      "help": "Model name for fact extraction (default: gpt-5.4-nano). Must support JSON output.",
+      "advanced": true
+    },
+    "llmApiKey": {
+      "label": "LLM API Key",
+      "help": "API key for OpenAI-compatible LLM. Falls back to OPENAI_API_KEY env var.",
+      "advanced": true
+    },
+    "bootAudit": {
+      "label": "Boot Audit",
+      "help": "Run coherence audit on first message of each session (default: false)",
+      "advanced": true
+    },
+    "syncMdEnabled": {
+      "label": "Sync .md Files",
+      "help": "Auto-sync facts to workspace .md files by category (default: false)",
+      "advanced": true
+    }
+  },
+  "configSchema": {
+    "type": "object",
+    "additionalProperties": false,
+    "properties": {
+      "convexUrl": {
+        "type": "string"
+      },
+      "autoRecall": {
+        "type": "boolean"
+      },
+      "autoCapture": {
+        "type": "boolean"
+      },
+      "recallLimit": {
+        "type": "number",
+        "minimum": 1,
+        "maximum": 20
+      },
+      "captureMaxChars": {
+        "type": "number",
+        "minimum": 50,
+        "maximum": 5000
+      },
+      "defaultAgent": {
+        "type": "string"
+      },
+      "captureMode": {
+        "type": "string",
+        "enum": [
+          "regex",
+          "llm",
+          "both"
+        ]
+      },
+      "llmUrl": {
+        "type": "string"
+      },
+      "llmModel": {
+        "type": "string"
+      },
+      "llmApiKey": {
+        "type": "string"
+      },
+      "bootAudit": {
+        "type": "boolean"
+      },
+      "syncMdEnabled": {
+        "type": "boolean"
+      }
+    },
+    "required": [
+      "convexUrl"
+    ]
+  },
+  "version": "0.3.0"
+}
