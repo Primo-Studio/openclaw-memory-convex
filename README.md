@@ -5,7 +5,7 @@ Zéro dépendance npm, coût quasi nul (~$0.04/mois).
 
 ## Version
 
-**v0.2.0** (22/03/2026)
+**v0.3.0** (22/03/2026)
 
 ## Fonctionnalités
 
