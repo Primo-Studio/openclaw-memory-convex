@@ -1,7 +1,7 @@
 /**
  * memory-convex — OpenClaw plugin for auto-recall/capture via Convex agentMemory.
  *
- * v0.4.1 — Phase 2:
+ * v0.5.0 — Phase 2:
  *   - Point 4: LLM-based fact extraction (Ollama GLM4, $0)
  *   - Point 5: Boot audit (coherence check on first message)
  *   - Point 6: Extended .md sync (MEMORY.md, USER.md, TOOLS.md)
@@ -14,7 +14,7 @@
  */
 
 import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
-import { ConvexMemoryClient } from "./convex-client.js";
+import { JsonFactStore } from "./json-store.js";
 import { readFile, writeFile, appendFile } from "node:fs/promises";
 
 // ─── Config ───
@@ -290,9 +290,9 @@ async function extractFactsWithLlm(
           model: cfg.llmModel,
           prompt,
           stream: false,
-          options: { temperature: 0.1, num_predict: 512 },
+          options: { temperature: 0.1, num_predict: 1024 },
         }),
-        signal: AbortSignal.timeout(15000),
+        signal: AbortSignal.timeout(30000),
       });
 
       if (!res.ok) {
@@ -334,15 +334,20 @@ async function extractFactsWithLlm(
       raw = (data.choices?.[0]?.message?.content || "").trim();
     }
 
-    // Parse JSON (handle markdown code blocks)
+    // Parse JSON (handle markdown code blocks + stray text)
     let jsonStr = raw;
-    if (jsonStr.startsWith("```")) {
-      // Strip opening ``` (with optional language tag like ```json)
-      jsonStr = jsonStr.replace(/^```[a-z]*\n?/i, "");
-      // Strip closing ```
-      jsonStr = jsonStr.replace(/\n?```$/i, "");
-    }
+    // Strip all markdown code fences
+    jsonStr = jsonStr.replace(/```[a-z]*\n?/gi, "").replace(/\n?```/g, "");
     jsonStr = jsonStr.trim();
+    // If LLM prepended text before JSON, extract the JSON object/array
+    const jsonMatch = jsonStr.match(/(\{[\s\S]*\}|\[[\s\S]*\])/);
+    if (jsonMatch) {
+      jsonStr = jsonMatch[1];
+    }
+    if (!jsonStr.startsWith("{") && !jsonStr.startsWith("[")) {
+      logger.warn?.(`memory-convex: LLM returned non-JSON: ${jsonStr.slice(0, 100)}`);
+      return [];
+    }
 
     const parsed = JSON.parse(jsonStr);
 
@@ -557,7 +562,7 @@ async function runBootAudit(
 ): Promise<string | null> {
   try {
     const stats = await client.stats();
-    const recent = await client.recent({ hours: 24, limit: 5 });
+    const recent = await client.recent(24, 5);
 
     // Basic coherence: check that we have facts and they're not stale
     const issues: string[] = [];
@@ -631,13 +636,13 @@ const memoryConvexPlugin = {
       return;
     }
 
-    const client = new ConvexMemoryClient(cfg.convexUrl);
+    const client = new JsonFactStore(WORKSPACE);
 
     // Track boot audit state per session
     let bootAuditDone = false;
 
     api.logger.info(
-      `memory-convex: v0.4.1 registered (recall=${cfg.autoRecall}, capture=${cfg.captureMode}, audit=${cfg.bootAudit}, syncMd=${cfg.syncMdEnabled}, agent=${cfg.defaultAgent})`,
+      `memory-convex: v0.5.0 registered (recall=${cfg.autoRecall}, capture=${cfg.captureMode}, audit=${cfg.bootAudit}, syncMd=${cfg.syncMdEnabled}, agent=${cfg.defaultAgent})`,
     );
 
     // ════════════════════════════════════════════════════════════════════════
@@ -665,7 +670,7 @@ const memoryConvexPlugin = {
         try {
           // Fetch more than needed, then re-rank with temporal scoring
           const fetchLimit = Math.min(cfg.recallLimit * 2, 20);
-          const facts = await client.search(prompt, { limit: fetchLimit });
+          const facts = await client.search(prompt, fetchLimit);
 
           if (!facts || facts.length === 0) {
             return auditContext ? { prependContext: auditContext } : undefined;
@@ -684,7 +689,7 @@ const memoryConvexPlugin = {
 
           // Track access for usage-based scoring
           const accessIds = topFacts.map((f) => f._id).filter(Boolean);
-          client.trackAccess(accessIds).catch(() => {}); // fire & forget
+          accessIds.forEach(id => client.trackAccess(id)).catch(() => {}); // fire & forget
 
           api.logger.info?.(
             `memory-convex: recall injected ${topFacts.length}/${relevant.length} facts (temporal scored) for "${prompt.slice(0, 50)}..."`,
@@ -845,9 +850,9 @@ const memoryConvexPlugin = {
       handler: async (_ctx) => {
         try {
           const stats = await client.stats();
-          const recent = await client.recent({ hours: 24, limit: 5 });
+          const recent = await client.recent(24, 5);
 
-          let text = `🧠 **Mémoire Convex** (v0.4.1)\n`;
+          let text = `🧠 **Mémoire Convex** (v0.5.0)\n`;
           text += `Total: ${stats.total} faits | Hashés: ${stats.withHash}\n`;
           text += `Mode capture: ${cfg.captureMode} | Recall: ${cfg.recallLimit}\n`;
           text += `Audit boot: ${cfg.bootAudit ? "ON" : "OFF"} | Sync .md: ${cfg.syncMdEnabled ? "ON" : "OFF"}\n`;
