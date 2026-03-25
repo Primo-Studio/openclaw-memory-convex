@@ -3,141 +3,107 @@
 Plugin de mémoire persistante pour OpenClaw utilisant Convex comme backend.
 Zéro dépendance npm, coût quasi nul (~$0.04/mois).
 
+**Compatible OpenClaw 2026.3.23+** (plugin-sdk/core)
+
 ## Version
 
-**v0.3.0** (22/03/2026)
+**v0.3.0** (24/03/2026)
+
+## Compatibilité
+
+| OpenClaw | Status |
+|----------|--------|
+| 2026.3.23+ | ✅ Testé, compatible |
+| 2026.3.13–2026.3.22 | ✅ Compatible |
+| < 2026.3.13 | ⚠️ Non testé |
+
+Le plugin utilise l'API stable `openclaw/plugin-sdk/core` (import type).
+Pattern d'export : `register()` + `export default` (compatible extensions locales `.ts`).
+
+> **Note SDK** : `definePluginEntry` (nouveau dans 2026.3.22+) n'est utilisable que pour les plugins **compilés en JS** (packages npm). Les extensions locales `.ts` doivent rester sur le pattern `register()`.
 
 ## Fonctionnalités
 
 ### Auto-Recall (before_prompt_build)
 - Cherche les faits pertinents dans agentMemory avant chaque message
-- Injecte les faits en `prependContext` (le modèle les voit avant le prompt)
+- Injecte en `prependContext` avec **temporal scoring** (decay exponentiel, boost récence)
 - Configurable : `recallLimit` (défaut: 8 faits)
-- Skip les heartbeats et commandes
 
 ### Auto-Capture (agent_end)
-- **Mode regex** : détecte préférences utilisateur et bugs signalés
-- **Mode LLM** : extraction de faits durables via LLM (GPT-5.4-nano par défaut)
-- **Mode both** : regex + LLM combinés avec dédup croisée
-- Filtres anti faux-positifs (patterns vagues rejetés, seuil texte 80 chars)
+- **Mode regex** : détecte préférences et bugs
+- **Mode LLM** : extraction via GPT-5.4-nano ou Ollama local ($0)
+- **Mode both** : regex + LLM avec dédup croisée
+- Dédup : overlap mots + Levenshtein distance
 
-### Boot Audit (before_prompt_build, 1ère invocation)
+### Boot Audit
 - Vérifie la cohérence mémoire au démarrage de session
-- Checks : faits existants, récence, fichiers workspace, accumulation erreurs
-- Écrit un rapport dans `memory/YYYY-MM-DD.md` si problèmes détectés
+- Rapport auto dans `memory/YYYY-MM-DD.md`
 
-### Sync .md étendue (agent_end)
-- Synchronise les faits capturés vers les fichiers .md appropriés
-- Mapping catégorie → fichier :
-  - `chronologie` → MEMORY.md (📅 Chronologie, insertion en haut)
-  - `erreur` → MEMORY.md (❌ Erreurs critiques)
-  - `savoir` → MEMORY.md (🧠 Savoir)
-  - `preference` → USER.md (Personnalité & Communication)
-  - `outil` → TOOLS.md (Dev Tools)
-- Dédup par overlap de mots (≥60%, ≥3 mots significatifs)
-- Sync checkboxes todo-promesses.md (legacy, toujours actif)
+### Sync .md étendue
+- `chronologie` → MEMORY.md | `erreur` → MEMORY.md | `savoir` → MEMORY.md
+- `preference` → USER.md | `outil` → TOOLS.md
 
 ### Commande /memory
-- Affiche les stats rapides de la mémoire (total, catégories, derniers faits)
+- Stats rapides de la mémoire persistante
 
 ## Configuration
 
 ```jsonc
 // openclaw.json → plugins.entries.memory-convex.config
 {
-  "convexUrl": "https://your-deployment.convex.cloud",  // Required
-  "autoRecall": true,           // Injection auto de faits
-  "autoCapture": true,          // Capture auto en fin de message
-  "recallLimit": 8,             // Nombre de faits injectés
-  "captureMaxChars": 500,       // Taille max message capturé
-  "defaultAgent": "koda",       // Nom de l'agent
-  
-  // Phase 2
-  "captureMode": "both",        // "regex" | "llm" | "both"
-  "llmUrl": "https://api.openai.com/v1",  // URL du LLM
-  "llmModel": "gpt-5.4-nano",  // Modèle d'extraction
-  "llmApiKey": "",              // Clé API (fallback: env OPENAI_API_KEY)
-  "bootAudit": true,            // Audit cohérence au boot
-  "syncMdEnabled": true         // Sync étendue vers .md
+  "convexUrl": "https://your-deployment.convex.cloud",
+  "autoRecall": true,
+  "autoCapture": true,
+  "recallLimit": 8,
+  "captureMode": "both",       // "regex" | "llm" | "both"
+  "llmUrl": "http://localhost:11434",  // Ollama local = $0
+  "llmModel": "glm4",
+  "bootAudit": true,
+  "syncMdEnabled": true
 }
 ```
 
-## Points LLM branchables
+## Plugin SDK — Patterns
 
-Le plugin est conçu pour être portable. Trois points utilisent un LLM :
+**Extensions locales (.ts)** — ce que memory-convex utilise :
+```typescript
+import type { OpenClawPluginApi } from "openclaw/plugin-sdk/core";
 
-### 1. Auto-capture (extractFactsWithLlm)
-- **Config** : `llmUrl` + `llmModel` + `llmApiKey`
-- **Défaut** : GPT-5.4-nano (API OpenAI, ~$0.001/jour)
-- **Local** : `llmUrl: "http://localhost:11434"`, `llmModel: "glm4"`
-- **Détection** : si l'URL contient "11434" ou "ollama" → format Ollama, sinon → OpenAI compatible
-- **Contrainte** : le modèle doit supporter le JSON structuré
+const myPlugin = {
+  id: "my-plugin",
+  name: "My Plugin",
+  register(api: OpenClawPluginApi) {
+    api.on("before_prompt_build", async (event) => { /* ... */ });
+  },
+};
+export default myPlugin;
+```
 
-### 2. Contradiction check (Convex server-side)
-- **Fichier** : `convex/agentMemory.ts` → action `storeWithContradictionCheck`
-- **Défaut** : GPT-5.4-nano via OpenAI API
-- **Local** : modifier la Convex action pour appeler Ollama (nécessite que le serveur Convex puisse joindre l'URL Ollama)
+**Plugins compilés (npm)** — pour publication :
+```typescript
+import { definePluginEntry } from "openclaw/plugin-sdk/core";
 
-### 3. LCM summaries (plugin lossless-claw, externe)
-- **Config** : `env.LCM_SUMMARY_PROVIDER` + `env.LCM_SUMMARY_MODEL`
-- **Défaut** : `openai-codex/gpt-5.2` ($0 avec plan Pro)
-- **Local** : `ollama/glm4` (qualité moindre pour résumés longs)
+export default definePluginEntry({
+  id: "my-plugin",
+  registerFull(api) { /* ... */ },
+});
+```
 
 ## Architecture
 
 ```
-Message utilisateur
-    ↓
-[before_prompt_build]
-    ├── Boot audit (1ère fois) → rapport dans memory/
-    └── Recall → search agentMemory → prependContext (8 faits)
-    ↓
-Réponse agent
-    ↓
-[agent_end]
-    ├── Regex extraction (préférences, bugs)
-    ├── LLM extraction (GPT-5.4-nano, faits durables)
-    ├── Store → agentMemory (Convex)
-    ├── Sync → todo-promesses.md (checkboxes)
-    └── Sync → MEMORY.md / USER.md / TOOLS.md (par catégorie)
-```
-
-## Coûts
-
-| Composant | Coût |
-|-----------|------|
-| GPT-5.4-nano (20 appels/jour) | ~$0.04/mois |
-| Convex (free tier) | $0 |
-| Avec Ollama local | $0 |
-
-## Fichiers
-
-```
-memory-convex/
-├── index.ts              # Plugin principal (hooks + extraction)
-├── convex-client.ts      # Client HTTP pour l'API Convex
-├── openclaw.plugin.json  # Manifest du plugin
-└── README.md             # Cette documentation
+Message → [before_prompt_build] → Recall (temporal scoring) → prependContext
+       → [agent_end] → Extract (regex+LLM) → Store (Convex) → Sync (.md)
 ```
 
 ## Changelog
 
-### v0.2.0 (22/03/2026)
-- **Point 4** : Auto-capture LLM (GPT-5.4-nano, supporte Ollama fallback)
-- **Point 5** : Boot audit (cohérence mémoire au démarrage)
-- **Point 6** : Sync .md étendue (5 catégories → 3 fichiers)
-- Filtres anti faux-positifs (patterns vagues, seuil texte)
-- Format prompt JSON object `{"facts": [...]}` pour compatibilité OpenAI
-
-### v0.1.0 (22/03/2026)
-- Auto-recall (before_prompt_build, 5→8 faits)
-- Auto-capture regex (agent_end, préférences + bugs)
-- Sync checkboxes todo-promesses.md
-- Commande /memory
-
 ### v0.3.0 (22/03/2026)
-- **Temporal scoring** : decay exponentiel pour faits épisodiques, boost faits <24h, catégories protégées
-- **Track access** : compteur d'accès + timestamp dernier recall (Convex `trackAccess`)
-- **Dédup amélioré** : Levenshtein distance en complément de l'overlap de mots
-- **Re-ranking** : fetch 2x le limit, score temporel, retourne les top N
-- **Fix contradiction check** : élargi fenêtre de recherche côté recall
+- Temporal scoring, track access, Levenshtein dedup, re-ranking
+- Compat OpenClaw 2026.3.23+
+
+### v0.2.0
+- Auto-capture LLM, boot audit, sync .md étendue
+
+### v0.1.0
+- Auto-recall, auto-capture regex, /memory
