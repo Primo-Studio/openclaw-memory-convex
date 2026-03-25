@@ -1,5 +1,13 @@
 # Changelog
 
+## v0.4.1 (2026-03-25)
+### Fixed
+- **JSON parsing of LLM responses** — gemma3:4b wraps output in ` ```json ... ``` ` markdown blocks. Previous strip logic (`split("\n",2)`) failed on this format → `SyntaxError` at JSON.parse → 0 facts captured despite successful LLM call
+- Replaced with proper regex strip: `^```[a-z]*\n?` and `\n?```$`
+
+### Added
+- Debug logging on `agent_end` hook (success status, message count, extracted text sizes)
+
 ## v0.4.0 (2026-03-25)
 ### Fixed
 - **Critical: zero auto-captures since v0.1.0** — `extractText()` rejected all messages exceeding `captureMaxChars` (500). Telegram messages with metadata always exceed 500 chars → 0 facts ever captured automatically

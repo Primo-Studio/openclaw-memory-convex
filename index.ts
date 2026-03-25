@@ -1,7 +1,7 @@
 /**
  * memory-convex — OpenClaw plugin for auto-recall/capture via Convex agentMemory.
  *
- * v0.3.0 — Phase 2:
+ * v0.4.1 — Phase 2:
  *   - Point 4: LLM-based fact extraction (Ollama GLM4, $0)
  *   - Point 5: Boot audit (coherence check on first message)
  *   - Point 6: Extended .md sync (MEMORY.md, USER.md, TOOLS.md)
@@ -637,7 +637,7 @@ const memoryConvexPlugin = {
     let bootAuditDone = false;
 
     api.logger.info(
-      `memory-convex: v0.3.0 registered (recall=${cfg.autoRecall}, capture=${cfg.captureMode}, audit=${cfg.bootAudit}, syncMd=${cfg.syncMdEnabled}, agent=${cfg.defaultAgent})`,
+      `memory-convex: v0.4.1 registered (recall=${cfg.autoRecall}, capture=${cfg.captureMode}, audit=${cfg.bootAudit}, syncMd=${cfg.syncMdEnabled}, agent=${cfg.defaultAgent})`,
     );
 
     // ════════════════════════════════════════════════════════════════════════
@@ -847,7 +847,7 @@ const memoryConvexPlugin = {
           const stats = await client.stats();
           const recent = await client.recent({ hours: 24, limit: 5 });
 
-          let text = `🧠 **Mémoire Convex** (v0.3.0)\n`;
+          let text = `🧠 **Mémoire Convex** (v0.4.1)\n`;
           text += `Total: ${stats.total} faits | Hashés: ${stats.withHash}\n`;
           text += `Mode capture: ${cfg.captureMode} | Recall: ${cfg.recallLimit}\n`;
           text += `Audit boot: ${cfg.bootAudit ? "ON" : "OFF"} | Sync .md: ${cfg.syncMdEnabled ? "ON" : "OFF"}\n`;
