@@ -715,14 +715,16 @@ const memoryConvexPlugin = {
             const role = m.role as string;
 
             const extractText = (content: unknown): string | null => {
-              if (typeof content === "string" && content.length <= cfg.captureMaxChars) {
+              // Extract text regardless of length — truncation happens later at LLM call
+              // captureMaxChars no longer gates extraction (was filtering ALL real messages)
+              if (typeof content === "string" && content.length > 0) {
                 return content;
               }
               if (Array.isArray(content)) {
                 for (const part of content) {
                   if (part && typeof part === "object" && (part as any).type === "text") {
                     const text = (part as any).text;
-                    if (typeof text === "string" && text.length <= cfg.captureMaxChars) {
+                    if (typeof text === "string" && text.length > 0) {
                       return text;
                     }
                   }
