@@ -92,3 +92,20 @@ export class JsonFactStore {
     await this.save(facts);
   }
 }
+
+  async stats(): Promise<{total: number; categories: Record<string, number>; agents: Record<string, number>}> {
+    const facts = await this.load();
+    const active = facts.filter(f => !f.superseded);
+    const categories: Record<string, number> = {};
+    const agents: Record<string, number> = {};
+    for (const f of active) {
+      categories[f.category] = (categories[f.category] || 0) + 1;
+      agents[f.agent] = (agents[f.agent] || 0) + 1;
+    }
+    return { total: active.length, categories, agents };
+  }
+
+  async list(limit = 100): Promise<Fact[]> {
+    const facts = await this.load();
+    return facts.slice(-limit);
+  }
