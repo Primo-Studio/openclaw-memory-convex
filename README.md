@@ -3,6 +3,8 @@
 Plugin de mémoire persistante pour OpenClaw utilisant Convex comme backend.
 Zéro dépendance npm, coût quasi nul (~$0.04/mois).
 
+> Ce plugin est le **branchement gateway** de [Agent Memory Tools](https://github.com/Primo-Studio/agent-memory-tools) — le skill standalone avec recherche multi-sources, benchmarks, et CLI.
+
 **Compatible OpenClaw 2026.3.23+** (plugin-sdk/core)
 
 ## Version
