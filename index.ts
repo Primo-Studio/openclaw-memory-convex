@@ -337,8 +337,10 @@ async function extractFactsWithLlm(
     // Parse JSON (handle markdown code blocks)
     let jsonStr = raw;
     if (jsonStr.startsWith("```")) {
-      jsonStr = jsonStr.split("\n", 2)[1] || jsonStr;
-      jsonStr = jsonStr.split("```")[0] || jsonStr;
+      // Strip opening ``` (with optional language tag like ```json)
+      jsonStr = jsonStr.replace(/^```[a-z]*\n?/i, "");
+      // Strip closing ```
+      jsonStr = jsonStr.replace(/\n?```$/i, "");
     }
     jsonStr = jsonStr.trim();
 
@@ -702,7 +704,11 @@ const memoryConvexPlugin = {
 
     if (cfg.autoCapture) {
       api.on("agent_end", async (event, _ctx) => {
-        if (!event.success || !event.messages || event.messages.length === 0) return;
+        api.logger.info?.(`memory-convex: agent_end fired (success=${event.success}, messages=${event.messages?.length ?? 0})`);
+        if (!event.success || !event.messages || event.messages.length === 0) {
+          api.logger.info?.(`memory-convex: agent_end skipped (success=${event.success}, msgs=${event.messages?.length ?? 0})`);
+          return;
+        }
 
         try {
           // Collect texts from both user AND assistant messages
@@ -739,6 +745,8 @@ const memoryConvexPlugin = {
               else if (role === "assistant") assistantTexts.push(text);
             }
           }
+
+          api.logger.info?.(`memory-convex: extracted ${userTexts.length} user texts (${userTexts.map(t => t.length).join(',')}) + ${assistantTexts.length} assistant texts (${assistantTexts.map(t => t.length).join(',')})`);
 
           const allFacts: ExtractedFact[] = [];
 
